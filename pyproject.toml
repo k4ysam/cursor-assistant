@@ -1,0 +1,22 @@
+[project]
+name = "cursor-assistant"
+version = "0.1.0"
+description = "A lightweight, always-on-top floating AI window backed by Claude Code CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PyQt6>=6.6",
+    "Pillow>=10.0",
+    "pynput>=1.7",
+]
+
+[project.scripts]
+cursor-assistant = "main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main", "assistant", "capture"]
+packages = ["ui"]
