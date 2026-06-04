@@ -31,14 +31,18 @@ Or double-click **`run.bat`** (launches without a console window).
 
 | Action | How |
 |---|---|
+| Show / hide the window | **Double middle-click** (scroll wheel) anywhere |
 | Ask a question | Type in the input bar, press **Enter** |
 | Screenshot a region | Click 📷, or press **Ctrl+Shift+X** anywhere |
 | Paste an image | **Ctrl+V** with an image on the clipboard |
-| Show / hide the window | **Ctrl+Shift+Space** anywhere |
 | Hide the window | **Esc** |
 | Collapse to title bar | the **–** button |
 | Quit | the **✕** button |
 
+- **Double-click the scroll wheel** anywhere to summon the window — it fades in
+  **at your cursor**. Double-click (rather than single) so it doesn't clash with
+  browser middle-click or Windows autoscroll. Double-click again or press **Esc**
+  to dismiss it.
 - Drag the window by its title bar; it stays where you put it.
 - Resize from the bottom-right grip.
 - The last 10 turns of conversation are kept as context (resets on quit).

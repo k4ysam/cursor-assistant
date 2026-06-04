@@ -8,8 +8,16 @@ from __future__ import annotations
 
 import io
 
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal
+from PyQt6.QtCore import (
+    QEasingCurve,
+    QParallelAnimationGroup,
+    QPoint,
+    QPropertyAnimation,
+    Qt,
+    pyqtSignal,
+)
 from PyQt6.QtGui import (
+    QCursor,
     QGuiApplication,
     QImage,
     QKeyEvent,
@@ -50,6 +58,8 @@ class MainWindow(QWidget):
         self._response_buffer = ""
         self._in_flight = False
         self._collapsed = False
+        self._anim_group: QParallelAnimationGroup | None = None
+        self._hide_anim: QPropertyAnimation | None = None
 
         self._build_ui()
         self._position_center_right()
@@ -352,18 +362,98 @@ class MainWindow(QWidget):
 
     def toggle_visibility(self) -> None:
         if self.isVisible():
-            self.hide()
+            self.hide_animated()
         else:
-            self.show()
-            self.raise_()
-            self.activateWindow()
-            self.focus_input()
+            self.show_at_cursor()
+
+    # ------------------------------------------------------------ animations
+
+    def show_at_cursor(self) -> None:
+        """Summon the window at the mouse cursor, clamped to its screen."""
+        pos = QCursor.pos()
+        screen = QGuiApplication.screenAt(pos) or QGuiApplication.primaryScreen()
+        target = QPoint(pos.x() - self.width() // 2, pos.y() - 30)
+        if screen is not None:
+            geo = screen.availableGeometry()
+            x = max(geo.left(), min(target.x(), geo.right() - self.width()))
+            y = max(geo.top(), min(target.y(), geo.bottom() - self.height()))
+            target = QPoint(x, y)
+        self._animate_in(target)
+
+    def show_animated(self) -> None:
+        """Fade/slide in at the current position (used after a screenshot)."""
+        self._animate_in(None)
+
+    def _stop_anims(self) -> None:
+        """Stop any in-flight show/hide animation. Safe to call repeatedly."""
+        for anim in (self._anim_group, self._hide_anim):
+            if anim is not None:
+                try:
+                    anim.stop()
+                except RuntimeError:
+                    pass  # underlying C++ object already gone
+        self._anim_group = None
+        self._hide_anim = None
+
+    def _animate_in(self, target: QPoint | None) -> None:
+        self._stop_anims()
+
+        final = target if target is not None else self.pos()
+        start = QPoint(final.x(), final.y() + styles.SLIDE_PX)
+
+        self.setWindowOpacity(0.0)
+        self.move(start)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self.focus_input()
+
+        fade = QPropertyAnimation(self, b"windowOpacity")
+        fade.setDuration(styles.ANIM_IN_MS)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        slide = QPropertyAnimation(self, b"pos")
+        slide.setDuration(styles.ANIM_IN_MS)
+        slide.setStartValue(start)
+        slide.setEndValue(final)
+        slide.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        group = QParallelAnimationGroup(self)
+        group.addAnimation(fade)
+        group.addAnimation(slide)
+        group.start()
+        self._anim_group = group
+
+    def hide_animated(self) -> None:
+        if not self.isVisible():
+            return
+        self._stop_anims()
+
+        fade = QPropertyAnimation(self, b"windowOpacity")
+        fade.setDuration(styles.ANIM_OUT_MS)
+        fade.setStartValue(self.windowOpacity())
+        fade.setEndValue(0.0)
+        fade.setEasingCurve(QEasingCurve.Type.InCubic)
+        fade.finished.connect(self._after_hide)
+        fade.start()
+        self._hide_anim = fade
+
+    def _after_hide(self) -> None:
+        # Only finalize if a fade-out actually completed (not interrupted by a
+        # re-summon, which clears _hide_anim via _stop_anims).
+        if self._hide_anim is None:
+            return
+        self.hide()
+        self.setWindowOpacity(1.0)
+        self._hide_anim = None
 
     # ----------------------------------------------------------- key + paste
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         if event.key() == Qt.Key.Key_Escape:
-            self.hide()
+            self.hide_animated()
             return
         if event.matches(QKeySequence.StandardKey.Paste):
             if self._try_paste_clipboard():

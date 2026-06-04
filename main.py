@@ -8,17 +8,19 @@ from __future__ import annotations
 
 import signal
 import sys
+import time
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 
-from pynput import keyboard
+from pynput import keyboard, mouse
 
 from assistant import Assistant
 from capture import ScreenCapture
 from ui.window import MainWindow
 
-CAPTURE_DELAY_MS = 220  # let the window fully hide before grabbing the screen
+CAPTURE_DELAY_MS = 220       # let the window fully hide before grabbing the screen
+DOUBLE_CLICK_SECS = 0.4      # max gap between the two middle-clicks that summon
 
 
 class HotkeyBridge(QObject):
@@ -44,8 +46,11 @@ class App:
         self.capture = ScreenCapture()
         self.bridge = HotkeyBridge()
 
+        self._last_mid = 0.0  # timestamp of the previous middle-click
+
         self._wire_signals()
         self._listener = self._install_hotkeys()
+        self._mouse = self._install_mouse()
 
     # --------------------------------------------------------------- wiring
 
@@ -80,15 +85,10 @@ class App:
 
     def _on_captured(self, image: object) -> None:
         self.window.set_image(image)
-        self.window.show()
-        self.window.raise_()
-        self.window.activateWindow()
-        self.window.focus_input()
+        self.window.show_animated()
 
     def _on_capture_cancelled(self) -> None:
-        self.window.show()
-        self.window.raise_()
-        self.window.activateWindow()
+        self.window.show_animated()
 
     # ------------------------------------------------------------- hotkeys
 
@@ -96,12 +96,29 @@ class App:
         listener = keyboard.GlobalHotKeys(
             {
                 "<ctrl>+<shift>+x": self.bridge.screenshot.emit,
-                "<ctrl>+<shift>+<space>": self.bridge.toggle.emit,
             }
         )
         listener.daemon = True
         listener.start()
         return listener
+
+    def _install_mouse(self) -> mouse.Listener:
+        listener = mouse.Listener(on_click=self._on_mouse_click)
+        listener.daemon = True
+        listener.start()
+        return listener
+
+    def _on_mouse_click(self, x: int, y: int, button, pressed: bool) -> None:
+        # Double middle-click (scroll-wheel) toggles the window. Listener is
+        # passive, so the click still reaches the underlying app.
+        if not pressed or button != mouse.Button.middle:
+            return
+        now = time.monotonic()
+        if now - self._last_mid <= DOUBLE_CLICK_SECS:
+            self._last_mid = 0.0
+            self.bridge.toggle.emit()
+        else:
+            self._last_mid = now
 
     # ------------------------------------------------------------ lifecycle
 
@@ -124,10 +141,11 @@ class App:
         return self.qt.exec()
 
     def quit(self) -> None:
-        try:
-            self._listener.stop()
-        except Exception:
-            pass
+        for listener in (self._listener, self._mouse):
+            try:
+                listener.stop()
+            except Exception:
+                pass
         self.assistant.shutdown()
         self.qt.quit()
 

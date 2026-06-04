@@ -22,11 +22,17 @@ FRAME_ALPHA = "0.94"
 # --- Geometry ----------------------------------------------------------------
 
 BORDER_RADIUS = 12
-DEFAULT_WIDTH = 400
-DEFAULT_HEIGHT = 500
-MIN_WIDTH = 300
-MIN_HEIGHT = 200
+DEFAULT_WIDTH = 340
+DEFAULT_HEIGHT = 400
+MIN_WIDTH = 280
+MIN_HEIGHT = 220
 PREVIEW_MAX_HEIGHT = 120
+
+# --- Animation ---------------------------------------------------------------
+
+ANIM_IN_MS = 150    # fade + slide in
+ANIM_OUT_MS = 110   # fade out
+SLIDE_PX = 10       # upward slide distance on appear
 
 
 def _rgba(hex_color: str, alpha: str) -> str:
